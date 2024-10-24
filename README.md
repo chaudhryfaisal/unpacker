@@ -1,21 +1,21 @@
 # Youpk
-又一款基于ART的主动调用的脱壳机
+Another active de-sheller based on ART
 
 
 
-## 原理
+## Principle
 
-Youpk是一款针对Dex整体加固+各式各样的Dex抽取的脱壳机
+Youpk is a de-sheller for Dex overall reinforcement + various Dex extraction
 
-基本流程如下:
+The basic process is as follows:
 
-1. 从内存中dump DEX
-2. 构造完整调用链, 主动调用所有方法并dump CodeItem
-3. 合并 DEX, CodeItem
+1. Dump DEX from memory
+2. Construct a complete call chain, actively call all methods and dump CodeItem
+3. Merge DEX, CodeItem
 
-### 从内存中dump DEX
+### Dump DEX from memory
 
-DEX文件在art虚拟机中使用DexFile对象表示, 而ClassLinker中引用了这些对象, 因此可以采用从ClassLinker中遍历DexFile对象并dump的方式来获取.
+DEX files are represented by DexFile objects in the art virtual machine, and these objects are referenced in ClassLinker, so they can be obtained by traversing DexFile objects from ClassLinker and dumping them.
 
 ```c++
 //unpacker.cc
@@ -34,7 +34,7 @@ std::list<const DexFile*> Unpacker::getDexFiles() {
 }
 ```
 
-另外, 为了避免dex做任何形式的优化影响dump下来的dex文件, 在dex2oat中设置 CompilerFilter 为仅验证
+In addition, to avoid any form of optimization in dex affecting the dumped dex file, set the CompilerFilter in dex2oat to only verify
 
 ```c++
 //dex2oat.cc
@@ -43,9 +43,9 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
 
 
 
-### 构造完整调用链, 主动调用所有方法
+### Construct a complete call chain and actively call all methods
 
-1. 创建脱壳线程
+1. Create an unpacking thread
 
    ```java
    //unpacker.java
@@ -54,7 +54,7 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
            return;
        }
    
-       //开启线程调用
+       //Start thread call
        Unpacker.unpackerThread = new Thread() {
            @Override public void run() {
                while (true) {
@@ -74,14 +74,14 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
    }
    ```
 
-2. 在脱壳线程中遍历DexFile的所有ClassDef
+2. Traverse all ClassDefs of DexFile in the unpacking thread
 
    ```c++
    //unpacker.cc
    for (; class_idx < dex_file->NumClassDefs(); class_idx++) {
    ```
 
-3. 解析并初始化Class
+3. Parse and initialize Class
 
    ```c++
    //unpacker.cc
@@ -91,7 +91,7 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
    bool suc = class_linker->EnsureInitialized(self, h_class, true, true);
    ```
 
-4. 主动调用Class的所有Method, 并修改ArtMethod::Invoke使其强制走switch型解释器
+4. Actively call all methods of the Class, and modify ArtMethod::Invoke to force it to use the switch interpreter
 
    ```c++
    //unpacker.cc
@@ -126,7 +126,7 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
    static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImplKind;
    ```
 
-5. 在解释器中插桩, 在每条指令执行前设置回调
+5. Insert stubs in the interpreter and set callbacks before each instruction is executed
 
    ```c++
    //interpreter_switch_impl.cc
@@ -145,7 +145,7 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
      } while (false)
    ```
 
-6. 在回调中做针对性的CodeItem的dump, 这里仅仅是简单的示例了直接dump, 实际上, 针对某些厂商的抽取, 可以真正的执行几条指令等待CodeItem解密后再dump
+6. Dump the targeted CodeItem in the callback. Here is just a simple example of direct dumping. In fact, for some manufacturers’ extraction, you can actually execute a few instructions and wait for the CodeItem to be decrypted before dumping.
 
    ```c++
    //unpacker.cc
@@ -160,13 +160,13 @@ compiler_options_->SetCompilerFilter(CompilerFilter::kVerifyAtRuntime);
 
 
 
-### 合并 DEX, CodeItem
+### Merge DEX, CodeItem
 
-将dump下来的CodeItem填充到DEX的相应位置中即可. 主要是基于google dx工具修改.
+Just fill the dumped CodeItem into the corresponding position of DEX. Mainly based on the modification of google dx tool.
 
 
 
-### 参考链接
+### Reference Links
 
 FUPK3: https://bbs.pediy.com/thread-246117.htm
 
@@ -174,69 +174,69 @@ FART: https://bbs.pediy.com/thread-252630.htm
 
 
 
-## 刷机
+## Flash the device
 
-1. 仅支持pixel 1代
-2. 重启至bootloader: `adb reboot bootloader`
-3. 解压 Youpk_sailfish.zip 并双击 `flash-all.bat`
+1. Only supports pixel 1 generation
+2. Reboot to bootloader: `adb reboot bootloader`
+3. Unzip Youpk_sailfish.zip and double-click `flash-all.bat`
 
 
 
-## 编译
+## Compile
 
-### 脱壳机源码编译
+### Sheller source code compilation
 
-1. 下载android-7.1.2_r33完整源码
-2. 替换unpacker/android-7.1.2_r33
-3. 编译
+1. Download the complete source code of android-7.1.2_r33
+2. Replace unpacker/android-7.1.2_r33
+3. Compile
 
-### 修复工具编译
+### Repair tool compilation
 
-1. IDEA导入dexfixer项目
+1. Import dexfixer project into IDEA
 2. main class为 `com.android.dx.unpacker.DexFixer` 
 
 
 
-## 使用方法
+## Usage
 
-1. **该工具仅仅用来学习交流, 请勿用于非法用途, 否则后果自付！**
+1. **This tool is only used for learning and communication. Please do not use it for illegal purposes, otherwise you will bear the consequences yourself! **
    
-2. 配置待脱壳的app包名, 准确来讲是进程名称
+2. Configure the app package name to be unpacked, or more precisely, the process name
 
     ```bash
     adb shell "echo cn.youlor.mydemo >> /data/local/tmp/sunlake.config"
     ```
 
-3. 如果apk没有整体加固, 未避免installd调用dex2oat优化, 需要在安装之前执行第2步
+3. If the apk is not fully reinforced and installd does not call dex2oat for optimization, you need to execute step 2 before installation
     
-4. 启动apk等待脱壳
-    每隔10秒将自动重新脱壳(已完全dump的dex将被忽略), 当日志打印unpack end时脱壳完成
+4. Start apk and wait for unpacking
+    The decompression will be automatically re-dumped every 10 seconds (the dex that has been completely dumped will be ignored). The decompression is completed when the log prints "unpack end"
 
-5. pull出dump文件, dump文件路径为 `/data/data/包名/sunlake` 
+5. Pull out the dump file, the dump file path is `/data/data/package name/sunlake`
 
     ```bash
     adb pull /data/data/cn.youlor.mydemo/sunlake
     ```
 
-6. 调用修复工具 dexfixer.jar, 两个参数, 第一个为dump文件目录(必须为有效路径), 第二个为重组后的DEX目录(不存在将会创建)
+6. Call the repair tool dexfixer.jar, two parameters, the first is the dump file directory (must be a valid path), the second is the reorganized DEX directory (will be created if it does not exist)
     ```bash
     java -jar dexfixer.jar /path/to/sunlake /path/to/output
     ```
 
 
 
-## 适用场景
+## Applicable scenarios
 
-1. 整体加固
-2. 抽取:
-   - nop占坑型(类似某加密)
-   - naitve化, 在 `<clinit>` 中解密(类似早期阿里)
-   - goto解密型(类似新版某加密, najia): https://bbs.pediy.com/thread-259448.htm
-
-
+1. Overall reinforcement
+2. Extraction:
+   - nop pit type (similar to some encryption)
+   - Naitve, decrypted in `<clinit>` (similar to early Alibaba)
+   - goto decryption type (similar to the new version of a certain encryption, najia): https://bbs.pediy.com/thread-259448.htm
 
 
-## 常见问题
 
-1. dump中途退出或卡死，重新启动进程，再次等待脱壳即可
-2. 当前仅支持被壳保护的dex, 不支持App动态加载的dex/jar
+
+## Frequently Asked Questions
+
+1. If the dump exits or gets stuck midway, restart the process and wait for the dump to be unpacked again.
+2. Currently only supports dex protected by shell, not dex/jar dynamically loaded by App
